@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi ZONASI - MTs. Negeri 1 Boalemo</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons (CDN) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel for in-browser JSX compilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- HTML2Canvas for exporting to Image -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style>
+        /* Base typography */
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        
+        /* Smooth scrolling */
+        html { scroll-behavior: smooth; }
+        
+        /* Print Styles to ensure only the flyer is printed without UI elements */
+        @media print {
+            body { 
+                background: white !important; 
+                color: black !important; 
+                margin: 0; 
+                padding: 0; 
+            }
+            .no-print, header, aside, .action-toolbar { 
+                display: none !important; 
+            }
+            #flyer-canvas {
+                box-shadow: none !important;
+                border: none !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            @page { margin: 0; size: A4 portrait; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-900 transition-colors duration-300 antialiased">
+    
+    <!-- Root element for React application -->
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function App() {
+            const [darkMode, setDarkMode] = useState(false);
+            const [isEditing, setIsEditing] = useState(true);
+            const [activeTab, setActiveTab] = useState('editor'); // 'editor' | 'layout' | 'branding' | 'ai'
+            const [aiPrompt, setAiPrompt] = useState('Sosialisasi Remaja tentang Cinta dan Empati di MTs. Negeri 1 Boalemo');
+            const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+            const [isExporting, setIsExporting] = useState(false);
+            const [copiedSuccess, setCopiedSuccess] = useState(false);
+
+            // Layout & Styling Options
+            const [layoutStyle, setLayoutStyle] = useState('classic'); 
+            const [photoCount, setPhotoCount] = useState(4); 
+            const [photoHeight, setPhotoHeight] = useState(180); 
+            const [fontSize, setFontSize] = useState('normal'); 
+
+            const [flyerData, setFlyerData] = useState({
+                tagline: 'YOUR SOURCE OF INFORMATION',
+                mainTitle: 'ZONASI',
+                subTitle: 'ZONA INFORMASI',
+                qrCodeLink: 'https://web.mtsn1boalemo.sch.id',
+                headline: 'MTS. NEGERI 1 BOALEMO GELAR SOSIALISASI REMAJA TENTANG CINTA DAN EMPATI',
+                location: 'Boalemo',
+                date: '15 September 2026',
+                reporterInitials: 'RIL',
+
+                // Custom Branding Assets
+                matsagisaLogoAsset: null,   
+                sponsorHeaderAsset: null,   
+                zonasiBannerAsset: null,    
+                customFooterAsset: null,    
+                customHeaderAsset: null,    
+
+                // Default News Photos
+                photos: [
+                    'https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=1000&q=80',
+                    'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=600&q=80',
+                    'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=600&q=80',
+                    'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=600&q=80'
+                ],
+
+                // Default Article Paragraphs
+                paragraphs: [
+                    `Boalemo, 15 September 2026 – MTs. Negeri 1 Boalemo menggelar kegiatan Sosialisasi Remaja tentang “Cinta dan Empati” sebagai bagian dari upaya memberikan edukasi kepada siswa mengenai pentingnya menjaga diri, membangun pergaulan yang sehat, serta mempersiapkan masa depan tanpa terjebak pada pacaran dan pernikahan dini yang dipandu langsung oleh pemateri Husnawati dari Dinas Kesehatan Kabupaten Boalemo.`,
+                    `Kegiatan tersebut mengangkat tema “Sosialisasi Remaja Tentang Cinta dan Empati untuk Menghindari Pacaran di Lingkungan Madrasah dan Pencegahan Pernikahan Dini bagi Siswa.” Pesan ini menjadi bagian dari komitmen madrasah dalam menciptakan lingkungan pendidikan yang sehat, aman, dan mendukung perkembangan karakter peserta didik.`,
+                    `Melalui sosialisasi ini, para siswa diarahkan untuk memahami bahwa masa remaja merupakan fase penting dalam membangun karakter, mengembangkan potensi, serta mempersiapkan pendidikan dan cita-cita. Perasaan cinta dan ketertarikan terhadap lawan jenis dipandang sebagai bagian dari perkembangan remaja yang perlu disikapi dengan bijak, penuh tanggung jawab, dan tetap sesuai dengan nilai-nilai agama serta norma yang berlaku.`
+                ],
+
+                // Social Media Handles
+                socials: {
+                    youtube: '@matsagisa.tv',
+                    instagram: '@mtsnegeri1boalemo',
+                    facebook: '@MTs. Negeri 1 Boalemo',
+                    tiktok: '@humas.mtsn1boalemo'
+                }
+            });
+
+            // Dark mode side-effect
+            useEffect(() => {
+                if (darkMode) {
+                    document.body.classList.add('bg-slate-950', 'text-slate-100');
+                    document.body.classList.remove('bg-slate-100', 'text-slate-900');
+                } else {
+                    document.body.classList.add('bg-slate-100', 'text-slate-900');
+                    document.body.classList.remove('bg-slate-950', 'text-slate-100');
+                }
+            }, [darkMode]);
+
+            const handleAssetUpload = (e, assetKey) => {
+                const file = e.target.files && e.target.files[0];
+                if (file) {
+                    const imageUrl = URL.createObjectURL(file);
+                    setFlyerData(prev => ({ ...prev, [assetKey]: imageUrl }));
+                }
+            };
+
+            const removeAsset = (assetKey) => {
+                setFlyerData(prev => ({ ...prev, [assetKey]: null }));
+            };
+
+            const handlePhotoUpload = (e, index) => {
+                const file = e.target.files && e.target.files[0];
+                if (file) {
+                    const imageUrl = URL.createObjectURL(file);
+                    const updatedPhotos = [...flyerData.photos];
+                    updatedPhotos[index] = imageUrl;
+                    setFlyerData(prev => ({ ...prev, photos: updatedPhotos }));
+                }
+            };
+
+            const handleParagraphChange = (index, value) => {
+                const updated = [...flyerData.paragraphs];
+                updated[index] = value;
+                setFlyerData(prev => ({ ...prev, paragraphs: updated }));
+            };
+
+            const addParagraph = () => {
+                setFlyerData(prev => ({
+                    ...prev,
+                    paragraphs: [...prev.paragraphs, 'Tuliskan paragraf berita tambahan di sini...']
+                }));
+            };
+
+            const removeParagraph = (index) => {
+                if (flyerData.paragraphs.length <= 1) return;
+                setFlyerData(prev => ({
+                    ...prev,
+                    paragraphs: prev.paragraphs.filter((_, idx) => idx !== index)
+                }));
+            };
+
+            const generateAINews = async () => {
+                if (!aiPrompt.trim()) return;
+                setIsGeneratingAI(true);
+                try {
+                    // Note for production: Provide valid API Key if using Gemini
+                    // Fallback will activate immediately since key is empty in this template
+                    const promptText = `Buatkan draf berita resmi madrasah untuk "MTs. Negeri 1 Boalemo" tentang: "${aiPrompt}". Format JSON: { "headline": "...", "location": "Boalemo", "date": "...", "paragraphs": ["..."], "reporterInitials": "RIL" }`;
+
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=YOUR_API_KEY_HERE`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: promptText }] }],
+                            generationConfig: { responseMimeType: "application/json" }
+                        })
+                    });
+
+                    const data = await response.json();
+                    if (data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+                        const result = JSON.parse(data.candidates[0].content.parts[0].text);
+                        setFlyerData(prev => ({ ...prev, ...result }));
+                    } else {
+                        throw new Error('Fallback triggered');
+                    }
+                } catch (error) {
+                    // Fallback simulated success
+                    setFlyerData(prev => ({
+                        ...prev,
+                        headline: `MTS. NEGERI 1 BOALEMO SUKSES GELAR ${aiPrompt.toUpperCase()}`,
+                        paragraphs: [
+                            `Boalemo, ${prev.date} – MTs. Negeri 1 Boalemo sukses melaksanakan kegiatan ${aiPrompt}. Kegiatan ini dihadiri oleh jajaran tenaga pendidik serta seluruh peserta didik dengan penuh antusias.`,
+                            `Kepala Madrasah menegaskan bahwa kegiatan ini merupakan komitmen berkelanjutan MTs. Negeri 1 Boalemo dalam meningkatkan kualitas pendidikan karakter dan prestasi siswa di lingkungan madrasah.`,
+                            `Melalui momentum ini, diharapkan seluruh civitas akademika semakin terpacu untuk berinovasi, berempati, dan memberikan yang terbaik bagi kemajuan madrasah.`
+                        ]
+                    }));
+                } finally {
+                    setIsGeneratingAI(false);
+                }
+            };
+
+            const handlePrintPDF = () => {
+                window.print();
+            };
+
+            const handleDownloadJPG = async () => {
+                setIsExporting(true);
+                try {
+                    const element = document.getElementById('flyer-canvas');
+                    if (element && window.html2canvas) {
+                        const canvas = await window.html2canvas(element, {
+                            scale: 2, // High resolution
+                            useCORS: true,
+                            logging: false,
+                            backgroundColor: '#ffffff'
+                        });
+                        const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+                        const link = document.createElement('a');
+                        link.download = `ZONASI-Berita-${flyerData.location}-${Date.now()}.jpg`;
+                        link.href = dataUrl;
+                        link.click();
+                    }
+                } catch (err) {
+                    console.error('Export error:', err);
+                    alert("Gagal menyimpan gambar. Pastikan gambar eksternal mendukung akses publik.");
+                } finally {
+                    setIsExporting(false);
+                }
+            };
+
+            const handleShare = async () => {
+                if (navigator.share) {
+                    try {
+                        await navigator.share({
+                            title: flyerData.headline,
+                            text: `${flyerData.headline} - Zona Informasi Matsagisa Boalemo`,
+                            url: window.location.href,
+                        });
+                    } catch (err) {}
+                } else {
+                    navigator.clipboard.writeText(window.location.href);
+                    setCopiedSuccess(true);
+                    setTimeout(() => setCopiedSuccess(false), 2500);
+                }
+            };
+
+            const getFontSizeClass = () => {
+                switch (fontSize) {
+                    case 'compact': return 'text-[11px] leading-snug space-y-2';
+                    case 'relaxed': return 'text-sm leading-relaxed space-y-4';
+                    default: return 'text-xs md:text-[12.5px] leading-relaxed space-y-3';
+                }
+            };
+
+            return (
+                <div className="min-h-screen pb-12">
+                    {/* Header Navbar */}
+                    <header className={`sticky top-0 z-40 backdrop-blur-md border-b shadow-sm no-print ${
+                        darkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200'
+                    }`}>
+                        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+                            <div className="flex items-center space-x-3">
+                                <div className="bg-emerald-600 text-white p-2 rounded-xl shadow-md">
+                                    <i className="fa-solid fa-wand-magic-sparkles text-xl animate-pulse"></i>
+                                </div>
+                                <div>
+                                    <h1 className="text-lg font-black tracking-tight text-emerald-600 dark:text-emerald-400">
+                                        Aplikasi ZONASI
+                                    </h1>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                        Pembuat Flyer Berita - MTs. Negeri 1 Boalemo
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center space-x-2 flex-wrap gap-2">
+                                <button onClick={() => setIsEditing(!isEditing)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                                        isEditing ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                    }`}>
+                                    <i className={`fa-solid ${isEditing ? 'fa-eye' : 'fa-pen-to-square'}`}></i>
+                                    <span>{isEditing ? 'Sembunyikan Panel' : 'Edit Flyer'}</span>
+                                </button>
+
+                                <button onClick={handleDownloadJPG} disabled={isExporting}
+                                    className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1.5 transition-all shadow-sm disabled:opacity-50">
+                                    <i className="fa-solid fa-download"></i>
+                                    <span>{isExporting ? 'Proses...' : 'Save JPG'}</span>
+                                </button>
+
+                                <button onClick={handlePrintPDF}
+                                    className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 transition-all shadow-sm">
+                                    <i className="fa-solid fa-print"></i>
+                                    <span>Cetak / Save PDF</span>
+                                </button>
+
+                                <button onClick={handleShare}
+                                    className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-cyan-600 hover:bg-cyan-700 text-white flex items-center gap-1.5 transition-all shadow-sm">
+                                    <i className="fa-solid fa-share-nodes"></i>
+                                    <span>{copiedSuccess ? 'Disalin!' : 'Bagikan'}</span>
+                                </button>
+
+                                <button onClick={() => setDarkMode(!darkMode)}
+                                    className="p-2 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors"
+                                    title="Toggle Theme">
+                                    {darkMode ? <i className="fa-solid fa-sun text-amber-400"></i> : <i className="fa-solid fa-moon"></i>}
+                                </button>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Main Workspace */}
+                    <main className="max-w-7xl mx-auto px-4 py-6 flex flex-col lg:flex-row gap-8">
+                        
+                        {}
+                        {isEditing && (
+                            <aside className={`lg:w-[450px] shrink-0 p-5 rounded-2xl shadow-xl transition-all border no-print ${
+                                darkMode ? 'bg-slate-900 border-slate-800 text-slate-200' : 'bg-white border-slate-200'
+                            } h-fit space-y-5`}>
+
+                                {/* Tab Buttons */}
+                                <div className="grid grid-cols-4 gap-1 rounded-xl bg-slate-100 dark:bg-slate-800 p-1 text-[11px] font-semibold">
+                                    <button onClick={() => setActiveTab('editor')} className={`py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'editor' ? 'bg-white dark:bg-slate-900 text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+                                        <i className="fa-solid fa-file-lines text-sm"></i><span>Teks</span>
+                                    </button>
+                                    <button onClick={() => setActiveTab('layout')} className={`py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'layout' ? 'bg-white dark:bg-slate-900 text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+                                        <i className="fa-solid fa-border-all text-sm"></i><span>Layout & Foto</span>
+                                    </button>
+                                    <button onClick={() => setActiveTab('branding')} className={`py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'branding' ? 'bg-white dark:bg-slate-900 text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+                                        <i className="fa-regular fa-image text-sm"></i><span>Aset Header</span>
+                                    </button>
+                                    <button onClick={() => setActiveTab('ai')} className={`py-2 rounded-lg flex flex-col items-center justify-center gap-1 transition-all ${activeTab === 'ai' ? 'bg-white dark:bg-slate-900 text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'}`}>
+                                        <i className="fa-solid fa-wand-magic-sparkles text-sm text-amber-500"></i><span>AI Berita</span>
+                                    </button>
+                                </div>
+
+                                {/* Tab 1: Text Content */}
+                                {activeTab === 'editor' && (
+                                    <div className="space-y-4">
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Judul Utama / Headline</label>
+                                            <textarea rows="2" value={flyerData.headline} onChange={(e) => setFlyerData({ ...flyerData, headline: e.target.value })} className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-emerald-500 outline-none font-bold uppercase"/>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Lokasi Berita</label>
+                                                <input type="text" value={flyerData.location} onChange={(e) => setFlyerData({ ...flyerData, location: e.target.value })} className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-emerald-500 outline-none"/>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Tanggal Berita</label>
+                                                <input type="text" value={flyerData.date} onChange={(e) => setFlyerData({ ...flyerData, date: e.target.value })} className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-emerald-500 outline-none"/>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Inisial Jurnalis</label>
+                                                <input type="text" value={flyerData.reporterInitials} onChange={(e) => setFlyerData({ ...flyerData, reporterInitials: e.target.value })} className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-emerald-500 outline-none"/>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Link QR Code</label>
+                                                <input type="text" value={flyerData.qrCodeLink} onChange={(e) => setFlyerData({ ...flyerData, qrCodeLink: e.target.value })} className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-emerald-500 outline-none"/>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Isi Paragraf Berita ({flyerData.paragraphs.length})</label>
+                                                <button onClick={addParagraph} className="text-xs text-emerald-600 hover:text-emerald-700 font-bold flex items-center gap-1">
+                                                    <i className="fa-solid fa-plus"></i> Tambah
+                                                </button>
+                                            </div>
+                                            {flyerData.paragraphs.map((para, idx) => (
+                                                <div key={idx} className="flex gap-2 items-start">
+                                                    <span className="text-[10px] font-bold text-slate-400 mt-2">#{idx + 1}</span>
+                                                    <textarea rows="3" value={para} onChange={(e) => handleParagraphChange(idx, e.target.value)} className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-emerald-500 outline-none"/>
+                                                    {flyerData.paragraphs.length > 1 && (
+                                                        <button onClick={() => removeParagraph(idx)} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg mt-1">
+                                                            <i className="fa-solid fa-trash"></i>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Tab 2: Layout Options */}
+                                {activeTab === 'layout' && (
+                                    <div className="space-y-5">
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold block">1. Variasi Tata Letak Berita</label>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {[
+                                                    { id: 'classic', label: 'Klasik ZONASI', desc: 'Foto sidebar' },
+                                                    { id: 'editorial', label: 'Editorial', desc: 'Hero photo besar' },
+                                                    { id: 'magazine', label: 'Majalah', desc: 'Strip galeri' },
+                                                    { id: 'compact', label: 'Ringkas', desc: 'Fokus teks' }
+                                                ].map((item) => (
+                                                    <button key={item.id} onClick={() => setLayoutStyle(item.id)}
+                                                        className={`p-2.5 rounded-xl border text-left transition-all ${layoutStyle === item.id ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300' : 'border-slate-200 dark:border-slate-700'}`}>
+                                                        <div className="text-xs font-bold">{item.label}</div>
+                                                        <div className="text-[10px] opacity-70 mt-0.5">{item.desc}</div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3">
+                                            <label className="text-xs font-bold block">2. Jumlah Foto ({photoCount})</label>
+                                            <div className="flex gap-2">
+                                                {[1, 2, 3, 4].map(c => (
+                                                    <button key={c} onClick={() => setPhotoCount(c)} className={`flex-1 py-1.5 rounded-lg border text-xs font-bold ${photoCount === c ? 'bg-emerald-600 text-white border-emerald-600' : 'border-slate-300 dark:border-slate-700'}`}>{c}</button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3">
+                                            <div className="flex justify-between text-xs font-bold">
+                                                <span>3. Resize Tinggi Foto</span>
+                                                <span className="text-emerald-600">{photoHeight}px</span>
+                                            </div>
+                                            <input type="range" min="100" max="320" step="10" value={photoHeight} onChange={(e) => setPhotoHeight(Number(e.target.value))} className="w-full accent-emerald-600"/>
+                                        </div>
+                                        <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3">
+                                            <label className="text-xs font-bold block">4. Ukuran Kerapatan Teks</label>
+                                            <div className="flex gap-2 text-xs">
+                                                {['compact', 'normal', 'relaxed'].map(f => (
+                                                    <button key={f} onClick={() => setFontSize(f)} className={`flex-1 py-1.5 px-1 rounded-lg border text-[11px] font-semibold capitalize ${fontSize === f ? 'bg-emerald-600 text-white border-emerald-600' : 'border-slate-300 dark:border-slate-700'}`}>{f}</button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3">
+                                            <label className="text-xs font-bold block">5. Upload Foto Berita</label>
+                                            {Array.from({ length: photoCount }).map((_, idx) => (
+                                                <div key={idx} className="space-y-1">
+                                                    <label className="flex items-center justify-between border border-dashed border-slate-300 dark:border-slate-700 p-2 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+                                                        <div className="flex items-center space-x-2">
+                                                            <i className="fa-solid fa-camera text-emerald-600"></i>
+                                                            <span className="text-xs opacity-80">Foto #{idx + 1}...</span>
+                                                        </div>
+                                                        <input type="file" accept="image/*" onChange={(e) => handlePhotoUpload(e, idx)} className="hidden" />
+                                                        {flyerData.photos[idx] && <img src={flyerData.photos[idx]} alt={`Foto ${idx}`} className="w-8 h-8 object-cover rounded" />}
+                                                    </label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Tab 3: Branding */}
+                                {activeTab === 'branding' && (
+                                    <div className="space-y-4">
+                                        {[
+                                            { key: 'matsagisaLogoAsset', title: '1. Logo Kiri Atas (Madrasah)' },
+                                            { key: 'sponsorHeaderAsset', title: '2. Logo Kanan Atas (Sponsor)' },
+                                            { key: 'zonasiBannerAsset', title: '3. Banner ZONASI (Tengah)' },
+                                            { key: 'customFooterAsset', title: '4. Banner Footer (Bawah)' },
+                                            { key: 'customHeaderAsset', title: '5. Full Banner Header (Override)' }
+                                        ].map(asset => (
+                                            <div key={asset.key} className="space-y-1.5 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                                                <span className="text-xs font-bold block">{asset.title}</span>
+                                                {flyerData[asset.key] ? (
+                                                    <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-800 p-2 rounded-lg">
+                                                        <img src={flyerData[asset.key]} alt={asset.title} className="h-10 object-contain" />
+                                                        <button onClick={() => removeAsset(asset.key)} className="text-xs text-rose-600 font-semibold">Hapus</button>
+                                                    </div>
+                                                ) : (
+                                                    <label className="flex items-center justify-center gap-2 border border-dashed border-slate-300 dark:border-slate-700 p-2.5 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+                                                        <i className="fa-solid fa-upload text-emerald-600"></i>
+                                                        <span className="text-xs opacity-80">Pilih File...</span>
+                                                        <input type="file" accept="image/*" onChange={(e) => handleAssetUpload(e, asset.key)} className="hidden" />
+                                                    </label>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Tab 4: AI Generator */}
+                                {activeTab === 'ai' && (
+                                    <div className="space-y-4">
+                                        <div className="p-3 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-900/50 text-xs text-amber-900 dark:text-amber-300">
+                                            <span className="font-bold flex items-center gap-1 mb-1">
+                                                <i className="fa-solid fa-wand-magic-sparkles text-amber-500"></i>
+                                                <span>AI Assistant Berita</span>
+                                            </span>
+                                            <p className="opacity-90">Ketik kata kunci, biarkan AI menyusun berita resmi.</p>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-bold block">Topik Kegiatan</label>
+                                            <textarea rows="3" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder="Contoh: Peringatan Hari Pahlawan..." className="w-full text-xs p-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-amber-500 outline-none"/>
+                                        </div>
+                                        <button onClick={generateAINews} disabled={isGeneratingAI} className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-600 hover:to-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-50">
+                                            {isGeneratingAI ? <><i className="fa-solid fa-arrows-rotate fa-spin"></i><span>Menyusun Berita...</span></> : <><i className="fa-solid fa-wand-magic-sparkles"></i><span>Generate Teks Berita AI</span></>}
+                                        </button>
+                                    </div>
+                                )}
+
+                                <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-between text-[11px] text-slate-500">
+                                    <span className="font-semibold text-emerald-600 dark:text-emerald-400"><i className="fa-solid fa-user-check mr-1"></i>Syahril Nur</span>
+                                    <span className="italic">Developer & Pakar Pendidikan</span>
+                                </div>
+                            </aside>
+                        )}
+
+                        {}
+                        <section className={`flex-1 flex flex-col items-center justify-start ${isEditing ? '' : 'w-full max-w-4xl mx-auto'}`}>
+                            
+                            {/* Action Toolbar above Canvas */}
+                            <div className="action-toolbar w-full max-w-[820px] mb-3 p-2 bg-slate-200/70 dark:bg-slate-800/70 backdrop-blur rounded-xl flex items-center justify-between gap-2 border border-slate-300 dark:border-slate-700 text-xs no-print">
+                                <div className="flex items-center gap-2">
+                                    <span className="bg-emerald-600 text-white px-2 py-0.5 rounded text-[10px] font-bold">A4 FORMAT</span>
+                                    <span className="opacity-80 font-medium hidden sm:inline">Layout: <b className="capitalize">{layoutStyle}</b> ({photoCount} Foto)</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={handleDownloadJPG} disabled={isExporting} className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold shadow-sm transition-all"><i className="fa-solid fa-download mr-1"></i> Save JPG</button>
+                                    <button onClick={handlePrintPDF} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-sm transition-all"><i className="fa-solid fa-print mr-1"></i> Print PDF</button>
+                                </div>
+                            </div>
+
+                            {/* Canvas A4 Container */}
+                            <div id="flyer-canvas" className="w-full bg-white text-slate-900 shadow-2xl rounded-md overflow-hidden border border-slate-300" style={{ maxWidth: '820px', minHeight: '1120px', fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" }}>
+                                <div className="p-6 md:p-8 space-y-4 flex flex-col justify-between h-full">
+                                    <div className="space-y-4">
+                                        
+                                        {}
+                                        {flyerData.customHeaderAsset ? (
+                                            <div className="w-full flex justify-center items-center pb-2 border-b-2 border-slate-100">
+                                                <img src={flyerData.customHeaderAsset} alt="Full Header" className="w-full max-h-32 object-contain" />
+                                            </div>
+                                        ) : (
+                                            <div className="flex justify-between items-center pb-2 border-b-2 border-slate-100 gap-2">
+                                                {/* Left Logo */}
+                                                {flyerData.matsagisaLogoAsset ? (
+                                                    <img src={flyerData.matsagisaLogoAsset} alt="Logo Kiri" className="h-10 md:h-12 object-contain max-w-[160px]" />
+                                                ) : (
+                                                    <div className="flex items-center space-x-2">
+                                                        <div className="w-11 h-11 bg-emerald-700 rounded-full flex items-center justify-center text-white font-bold italic shadow">MTS</div>
+                                                        <div>
+                                                            <div className="font-extrabold text-rose-500 text-base leading-none">MATSAGISA</div>
+                                                            <div className="font-bold text-teal-600 text-xs italic">Boalemo</div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Center Badge */}
+                                                <div className="bg-[#0b5c5c] text-white px-3 md:px-5 py-1.5 rounded-sm shadow-sm text-center">
+                                                    <span className="text-[10px] md:text-xs font-bold tracking-widest uppercase block">{flyerData.tagline}</span>
+                                                </div>
+
+                                                {/* Right Logo */}
+                                                <div className="flex items-center space-x-2">
+                                                    {flyerData.sponsorHeaderAsset ? (
+                                                        <img src={flyerData.sponsorHeaderAsset} alt="Logo Kanan" className="h-10 md:h-12 object-contain max-w-[180px]" />
+                                                    ) : (
+                                                        <div className="font-bold text-xs text-blue-600 text-right leading-tight border-l-2 border-slate-300 pl-2">
+                                                            KEMENAG<br/><span className="text-cyan-600">EMIS</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {}
+                                        {flyerData.zonasiBannerAsset ? (
+                                            <div className="w-full flex justify-between items-center border-b-2 border-slate-100 py-1 gap-2">
+                                                <img src={flyerData.zonasiBannerAsset} alt="Banner ZONASI" className="h-16 md:h-20 object-contain flex-1" />
+                                                <div className="flex flex-col items-center bg-slate-50 p-1 border border-slate-200 rounded shrink-0">
+                                                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(flyerData.qrCodeLink)}`} alt="QR Code" className="w-12 h-12 md:w-14 md:h-14" />
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="border-4 border-[#0b5c5c] p-3 md:p-4 rounded-sm flex justify-between items-center bg-white shadow-sm">
+                                                <div className="space-y-0.5">
+                                                    <h1 className="text-4xl md:text-5xl font-black tracking-widest text-[#008751] font-serif leading-none">{flyerData.mainTitle}</h1>
+                                                    <p className="text-xs md:text-sm font-extrabold tracking-[0.3em] text-amber-500 uppercase">{flyerData.subTitle}</p>
+                                                </div>
+                                                <div className="bg-slate-50 p-1.5 border border-slate-200 rounded">
+                                                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(flyerData.qrCodeLink)}`} alt="QR Code" className="w-14 h-14 md:w-16 md:h-16" />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {}
+                                        {layoutStyle === 'classic' && (
+                                            <div className="grid grid-cols-1 md:grid-cols-12 gap-5 pt-1">
+                                                <div className={photoCount > 1 ? 'md:col-span-7 space-y-3' : 'md:col-span-12 space-y-3'}>
+                                                    {flyerData.photos[0] && (
+                                                        <div className="w-full rounded-sm overflow-hidden border bg-slate-100" style={{ height: `${photoHeight}px` }}>
+                                                            <img src={flyerData.photos[0]} alt="Hero" className="w-full h-full object-cover" crossOrigin="anonymous"/>
+                                                        </div>
+                                                    )}
+                                                    <h2 className="text-base md:text-lg font-black text-[#852758] uppercase leading-snug">{flyerData.headline}</h2>
+                                                    <div className={`text-slate-800 text-justify font-normal ${getFontSizeClass()}`}>
+                                                        {flyerData.paragraphs.map((p, i) => (
+                                                            <p key={i}>
+                                                                {i === 0 ? <><span className="font-extrabold">{flyerData.location}, {flyerData.date} – </span> {p}</> : p}
+                                                                {i === flyerData.paragraphs.length - 1 && flyerData.reporterInitials && <span className="font-extrabold ml-1">({flyerData.reporterInitials})</span>}
+                                                            </p>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                {photoCount > 1 && (
+                                                    <div className="md:col-span-5 flex flex-col gap-3">
+                                                        {flyerData.photos.slice(1, photoCount).map((img, i) => (
+                                                            <div key={i} className="w-full rounded-sm overflow-hidden border bg-slate-100 flex-1" style={{ minHeight: '100px' }}>
+                                                                <img src={img} alt={`Side ${i}`} className="w-full h-full object-cover" crossOrigin="anonymous"/>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {layoutStyle === 'editorial' && (
+                                            <div className="space-y-4 pt-1">
+                                                <h2 className="text-lg md:text-xl font-black text-[#0b5c5c] uppercase text-center">{flyerData.headline}</h2>
+                                                <div className="grid grid-cols-12 gap-2">
+                                                    <div className={photoCount > 1 ? 'col-span-8 rounded border' : 'col-span-12 rounded border'} style={{ height: `${photoHeight + 40}px` }}>
+                                                        <img src={flyerData.photos[0]} className="w-full h-full object-cover" crossOrigin="anonymous"/>
+                                                    </div>
+                                                    {photoCount > 1 && (
+                                                        <div className="col-span-4 flex flex-col gap-2">
+                                                            {flyerData.photos.slice(1, photoCount).map((img, i) => (
+                                                                <div key={i} className="flex-1 rounded border"><img src={img} className="w-full h-full object-cover" crossOrigin="anonymous"/></div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 text-justify ${getFontSizeClass()}`}>
+                                                    <div className="space-y-3">
+                                                        {flyerData.paragraphs.slice(0, Math.ceil(flyerData.paragraphs.length / 2)).map((p, i) => (
+                                                            <p key={i}>{i === 0 ? <><b className="font-extrabold">{flyerData.location}, {flyerData.date} –</b> {p}</> : p}</p>
+                                                        ))}
+                                                    </div>
+                                                    <div className="space-y-3">
+                                                        {flyerData.paragraphs.slice(Math.ceil(flyerData.paragraphs.length / 2)).map((p, i) => (
+                                                            <p key={i}>{p} {i === flyerData.paragraphs.slice(Math.ceil(flyerData.paragraphs.length / 2)).length - 1 && <b className="font-extrabold">({flyerData.reporterInitials})</b>}</p>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {layoutStyle === 'magazine' && (
+                                            <div className="space-y-4 pt-1">
+                                                <h2 className="text-base md:text-xl font-black text-[#852758] uppercase border-b-2 border-amber-400 pb-2">{flyerData.headline}</h2>
+                                                <div className={`text-justify ${getFontSizeClass()}`}><p><b className="font-extrabold">{flyerData.location}, {flyerData.date} –</b> {flyerData.paragraphs[0]}</p></div>
+                                                <div className={`grid grid-cols-${Math.min(photoCount, 4)} gap-2 my-2`}>
+                                                    {flyerData.photos.slice(0, photoCount).map((img, i) => (
+                                                        <div key={i} className="rounded border" style={{ height: `${photoHeight - 20}px` }}><img src={img} className="w-full h-full object-cover" crossOrigin="anonymous"/></div>
+                                                    ))}
+                                                </div>
+                                                <div className={`text-justify ${getFontSizeClass()}`}>
+                                                    {flyerData.paragraphs.slice(1).map((p, i) => (
+                                                        <p key={i}>{p} {i === flyerData.paragraphs.length - 2 && <b className="font-extrabold">({flyerData.reporterInitials})</b>}</p>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {layoutStyle === 'compact' && (
+                                            <div className="space-y-3 pt-1">
+                                                <h2 className="text-base md:text-lg font-black uppercase border-l-4 border-emerald-600 pl-3">{flyerData.headline}</h2>
+                                                <div className={`text-justify ${getFontSizeClass()}`}>
+                                                    {flyerData.paragraphs.map((p, i) => (
+                                                        <p key={i}>{i === 0 ? <><b className="font-extrabold">{flyerData.location}, {flyerData.date} –</b> {p}</> : p} {i === flyerData.paragraphs.length - 1 && <b className="font-extrabold">({flyerData.reporterInitials})</b>}</p>
+                                                    ))}
+                                                </div>
+                                                <div className={`grid grid-cols-${Math.min(photoCount, 4)} gap-2 pt-2 border-t border-slate-200`}>
+                                                    {flyerData.photos.slice(0, photoCount).map((img, i) => (
+                                                        <div key={i} className="rounded border" style={{ height: `${photoHeight - 30}px` }}><img src={img} className="w-full h-full object-cover" crossOrigin="anonymous"/></div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {}
+                                    <div className="pt-3 border-t-2 border-slate-200 mt-auto">
+                                        {flyerData.customFooterAsset ? (
+                                            <div className="w-full flex justify-center items-center">
+                                                <img src={flyerData.customFooterAsset} alt="Full Footer" className="w-full max-h-16 object-contain" />
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center text-[10px] md:text-xs font-bold text-slate-700">
+                                                <div className="flex items-center justify-center space-x-1.5 bg-slate-50 py-1.5 px-2 rounded border border-slate-100">
+                                                    <span className="text-red-600 font-black"><i className="fa-brands fa-youtube"></i></span>
+                                                    <span className="truncate">{flyerData.socials.youtube}</span>
+                                                </div>
+                                                <div className="flex items-center justify-center space-x-1.5 bg-slate-50 py-1.5 px-2 rounded border border-slate-100">
+                                                    <span className="text-pink-600 font-black"><i className="fa-brands fa-instagram"></i></span>
+                                                    <span className="truncate">{flyerData.socials.instagram}</span>
+                                                </div>
+                                                <div className="flex items-center justify-center space-x-1.5 bg-slate-50 py-1.5 px-2 rounded border border-slate-100">
+                                                    <span className="text-blue-600 font-black"><i className="fa-brands fa-facebook"></i></span>
+                                                    <span className="truncate">{flyerData.socials.facebook}</span>
+                                                </div>
+                                                <div className="flex items-center justify-center space-x-1.5 bg-slate-50 py-1.5 px-2 rounded border border-slate-100">
+                                                    <span className="text-black font-black"><i className="fa-brands fa-tiktok"></i></span>
+                                                    <span className="truncate">{flyerData.socials.tiktok}</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
